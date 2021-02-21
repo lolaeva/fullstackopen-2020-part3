@@ -9,6 +9,9 @@ app.use(express.json())
 const cors = require('cors')
 app.use(cors())
 
+// production build
+app.use(express.static('build'))
+
 // middleware
 morgan.token('body', function (req, res) { return JSON.stringify(req.body) })
 // app.use(morgan('tiny'))
