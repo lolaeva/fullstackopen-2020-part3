@@ -20,6 +20,8 @@ const personSchema = new mongoose.Schema({
   id: Number,
 })
 
+personSchema.plugin(uniqueValidator)
+
 const Person = mongoose.model('Person', personSchema)
 
 // avoid returning _v and _id objects to frontend
