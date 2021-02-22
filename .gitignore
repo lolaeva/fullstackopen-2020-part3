@@ -1,2 +1,4 @@
 node_modules
 requests
+.env
+index_ex.js

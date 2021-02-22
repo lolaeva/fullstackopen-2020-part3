@@ -1,6 +1,8 @@
 const express = require('express')
 const app = express()
 const morgan = require('morgan')
+require('dotenv').config() // environmental variables
+const Person = require('./models/person')
 
 // json parser
 app.use(express.json())
@@ -45,59 +47,97 @@ app.get('/', (request, response) => {
 })
 
 app.get('/api/persons', (request, response) => {
-  response.json(persons)
+  Person.find({}).then(persons => {
+    response.json(persons)
+  })
 })
 
 // ------ info -----------
 
 app.get('/info', (request, response) => {
-  response.send(
-    `<p>phonebook has info for ${persons.length}people</p>
-    <p>${new Date}</p>`)
+  
+  Person.countDocuments({}).then(count => {
+    response.send(`<p>phonebook has info for <strong>${count} people</strong></p>
+       <p>${new Date}</p>`)
+  })
+
+  // response.send(
+  //   `<p>phonebook has info for ${persons.length}people</p>
+  //   <p>${new Date}</p>`)
 })
 
 // --------- get single person ---------
 app.get('/api/persons/:id', (request, response) => {
-  const id = Number(request.params.id) // need to typecast since it returns string
-  const person = persons.find(person =>  person.id === id)
-
-  if(person){
-    response.json(person)
-  } else {
-    response.status(404).end()
-  }
+  Person.findById(request.params.id)
+    .then(person => {
+      if (person) {
+        response.json(person)
+      } else {
+        response.status(404).end()
+      }
+    })
+    .catch(error => {
+      console.log(error)
+      response.status(500).end()
+    })
 })
 
 // --------- delete person ---------
-app.delete('/api/persons/:id', (request, response) => {
-  const id = Number(request.params.id)
-  persons = persons.filter(p => p.id !== id)
-
-  response.status(204).end()
+app.delete('/api/persons/:id', (request, response, next) => {
+  Person.findByIdAndRemove(request.params.id)
+  .then(person => {
+    response.status(204).end()
+  })
+  .catch(error => next(error))
 })
 
 // ---------- add person --------
-app.post('/api/persons', (request, response) => {
+app.post('/api/persons', (request, response, next) => {
   const body = request.body
-  // content property may not be empty.
-  if (!body.name || !body.number) {
-    return response.status(404).json({ 
-      error: 'number or name is missing' 
-    })
-  } else if(persons.find(p => p.name === body.name)){
-    return response.status(409).json({ 
-      error: 'name must be unique' 
-    })
-  }
-  const person = {
+
+  const person = new Person({
     name: body.name,
     number: body.number,
     id: Math.floor(Math.random() * (1000-1) + 1),
-  }
-  persons = persons.concat(person)
-  response.json(person)
+  })
+  person.save()
+    .then(savedPerson => {
+      response.json(person)
+    })
+    .catch(error => next(error))
 })
 
+// -------- change person --------------
+app.put('/api/persons/:id', (request, response, next) => {
+  const body = request.body
+  const person = {
+    name: body.name,
+    number: body.number,
+  }
+  Person.findByIdAndUpdate(request.params.id, person, {new: true})
+    .then(updatedPerson => {
+      response.json(updatedPerson)
+    })
+    .catch(error => next(error))
+})
+
+// ---------- middleware after routes ---------
+const unknownEndpoint = (request, response) => {
+  response.status(404).send({ error: 'unknown endpoint' })
+}
+app.use(unknownEndpoint)
+// error handling middleware
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message)
+  if (error.name === 'CastError') {
+    return response.status(400).send({ error: 'malformatted id' })
+  } 
+  else if (error.name === 'ValidationError') {
+    return response.status(400).json({ error: error.message })
+  }
+  next(error)
+}
+app.use(errorHandler)
 
 
 
